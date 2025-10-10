@@ -28,6 +28,41 @@ import I18n from '@ohos.i18n';
 import Intl from '@ohos.intl';
 
 export class RNLocalizeModule extends TurboModule implements TM.RNLocalize.Spec {
+
+  // 判断字符是否为数字
+  private isDigit(char: string): boolean {
+    return char >= '0' && char <= '9';
+  }
+
+  private analyzeNumberFormat(formatted: string, original: number): { decimalSeparator: string, groupingSeparator: string } {
+    const numStr = original.toString();
+    const decimalIndex = numStr.indexOf('.');
+
+    let decimalSeparator = '.';
+    let groupingSeparator = ',';
+
+    // 查找小数点分隔符
+    if (decimalIndex !== -1) {
+      const decimalPart = numStr.substring(decimalIndex + 1);
+      const formattedDecimalIndex = formatted.length - decimalPart.length - 1;
+
+      if (formattedDecimalIndex >= 0 && formattedDecimalIndex < formatted.length) {
+        decimalSeparator = formatted[formattedDecimalIndex];
+      }
+    }
+
+    // 查找千分位分隔符（找第一个非数字非小数点的字符）
+    for (let i = 0; i < formatted.length; i++) {
+      const char = formatted[i];
+      if (!this.isDigit(char) && char !== decimalSeparator) {
+        groupingSeparator = char;
+        break;
+      }
+    }
+
+    return { decimalSeparator, groupingSeparator };
+  }
+
   getCalendar(): string {
     let locale = new Intl.Locale();
     let calendar = locale.calendar;
@@ -67,7 +102,7 @@ export class RNLocalizeModule extends TurboModule implements TM.RNLocalize.Spec 
     languageTag: '',
     isRTL: true
   }
-  
+
   getLocales() {
     let localesArray = [];
     let locale = new Intl.Locale();
@@ -80,10 +115,29 @@ export class RNLocalizeModule extends TurboModule implements TM.RNLocalize.Spec 
     return localesArray;
   }
 
-  getNumberFormatSettings = () => ({
-    decimalSeparator: ".",
-    groupingSeparator: ",",
-  });
+  getNumberFormatSettings = () => {
+    let systemRegion: string = '';
+    try {
+      systemRegion = I18n.System.getSystemRegion();
+      const numberFormat = new Intl.NumberFormat(systemRegion);
+
+      const testNumber = 1000000.1;
+      const formattedNumber = numberFormat.format(testNumber);
+
+      const { decimalSeparator, groupingSeparator } = this.analyzeNumberFormat(formattedNumber, testNumber);
+
+      return {
+        decimalSeparator: decimalSeparator,
+        groupingSeparator: groupingSeparator,
+      };
+    } catch (error) {
+      console.error(`Failed to obtain digital format settings, error code: ${error.code}, message: ${error.message}.`);
+      return {
+        decimalSeparator: ".",
+        groupingSeparator: ",",
+      };
+    }
+  };
 
   getTemperatureUnit = () => "celsius"; // or "fahrenheit"
 
